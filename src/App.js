@@ -164,8 +164,22 @@ const RegisterView = () => {
     try {
       await createUserWithEmailAndPassword(auth, email, password);
     } catch (err) {
-      setError("No se pudo crear la cuenta. Puede que el email ya esté en uso.");
-      console.error(err);
+      // --- LÓGICA DE ERROR MEJORADA ---
+      console.error("Error de registro:", err.code);
+      switch (err.code) {
+        case 'auth/email-already-in-use':
+          setError("Este email ya está registrado. Por favor, inicia sesión.");
+          break;
+        case 'auth/invalid-email':
+          setError("El formato del email no es válido.");
+          break;
+        case 'auth/weak-password':
+          setError("La contraseña es demasiado débil. Debe tener al menos 6 caracteres.");
+          break;
+        default:
+          setError("Ha ocurrido un error inesperado al crear la cuenta.");
+          break;
+      }
     }
     setLoading(false);
   };
