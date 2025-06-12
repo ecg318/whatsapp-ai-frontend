@@ -17,18 +17,22 @@ const Icon = ({ path, className = 'w-6 h-6' }) => (
 );
 
 const ICONS = {
-  // ... (iconos omitidos por brevedad)
   layout: "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5",
   settings: "M12.22 2h-4.44a2 2 0 0 0-2 2v.78a2 2 0 0 1-1 1.73l-.44.25a2 2 0 0 1-2 0l-.44-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2H2.78a2 2 0 0 0-1.73 1l-.25.44a2 2 0 0 1 0 2l.25.44a2 2 0 0 1 1.73 1v4.44a2 2 0 0 0 2 2h.78a2 2 0 0 1 1.73 1l.25.44a2 2 0 0 1 0 2l-.25.44a2 2 0 0 1-1.73 1h-.78a2 2 0 0 0-2 2v.78a2 2 0 0 1-1 1.73l-.44.25a2 2 0 0 1-2 0l-.44-.25a2 2 0 0 1-1-1.73V20a2 2 0 0 0-2-2h-4.44a2 2 0 0 0-1.73-1l-.25-.44a2 2 0 0 1 0-2l.25-.44a2 2 0 0 1 1.73-1h.78a2 2 0 0 0 2-2v-4.44a2 2 0 0 0-2-2h-.78a2 2 0 0 1-1.73-1l-.25-.44a2 2 0 0 1 0-2l.25-.44a2 2 0 0 1 1.73-1H12.22z",
   logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
   message: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z",
+  dollar: "M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6",
+  cart: "M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18",
+  zap: "M13 2L3 14h9l-1 8 10-12h-9l1-8z",
   store: "M18 6L18 4H6L6 6M6 6L6 20H18V6M6 6H2M18 6H22",
   key: "M14 21v-4.99L21 7h-4V3H7v4H3l7 9.01V21h4z",
   book: "M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z",
   check: "M20 6 9 17l-5-5",
   phone: "M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z",
   clipboard: "M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2",
-  user: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"
+  user: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2",
+  email: "M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z",
+  lock: "M7 11V7a5 5 0 0 1 10 0v4M5 11h14"
 };
 
 let db;
@@ -44,7 +48,10 @@ const initializeFirebase = () => {
       messagingSenderId: process.env.REACT_APP_MESSAGING_SENDER_ID,
       appId: process.env.REACT_APP_APP_ID,
     };
-    if (!firebaseConfig.apiKey) return;
+    if (!firebaseConfig.apiKey) {
+        console.error("Firebase config not found. Make sure environment variables are set.");
+        return;
+    }
     const app = initializeApp(firebaseConfig);
     db = getFirestore(app);
     auth = getAuth(app);
@@ -53,6 +60,7 @@ const initializeFirebase = () => {
 
 initializeFirebase();
 
+// --- Componente Principal ---
 export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -71,6 +79,131 @@ export default function App() {
   return user ? <MainApp user={user} /> : <AuthFlow />;
 }
 
+// --- Componentes de UI reutilizables ---
+const Spinner = () => (
+    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+);
+
+const NavItem = ({ icon, label, isActive, onClick }) => (
+    <li className={`mb-2 p-3 rounded-lg cursor-pointer flex items-center gap-4 transition-colors ${isActive ? 'bg-indigo-600/30 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`} onClick={onClick}>
+      {icon}
+      <span className="font-semibold">{label}</span>
+    </li>
+);
+
+// --- Flujo de Autenticación (Login / Registro) ---
+const AuthFlow = () => {
+  const [isLoginView, setIsLoginView] = useState(true);
+  const [error, setError] = useState('');
+
+  const handleAuthError = (err) => {
+      console.error("Error de autenticación:", err.code, err.message);
+      switch (err.code) {
+        case 'auth/email-already-in-use':
+          setError("Este email ya está registrado. Por favor, inicia sesión.");
+          break;
+        case 'auth/invalid-email':
+          setError("El formato del email no es válido.");
+          break;
+        case 'auth/weak-password':
+          setError("La contraseña es demasiado débil (mín. 6 caracteres).");
+          break;
+        case 'auth/user-not-found':
+        case 'auth/wrong-password':
+          setError("Email o contraseña incorrectos.");
+          break;
+        default:
+          setError(`Error: ${err.message}`);
+          break;
+      }
+  };
+
+  return (
+    <div className="bg-gray-900 min-h-screen flex flex-col items-center justify-center text-white p-4">
+      <div className="w-full max-w-md">
+        <h1 className="text-4xl font-bold text-center mb-2">Asistente AI</h1>
+        <p className="text-gray-400 text-center mb-8">La herramienta para recuperar carritos y automatizar el soporte.</p>
+        
+        {isLoginView ? <LoginView onError={handleAuthError} /> : <RegisterView onError={handleAuthError} />}
+        {error && <p className="text-red-400 text-sm text-center mt-4">{error}</p>}
+
+        <p className="text-center text-sm text-gray-500 mt-6">
+          {isLoginView ? "¿No tienes cuenta? " : "¿Ya tienes una cuenta? "}
+          <button onClick={() => { setIsLoginView(!isLoginView); setError(''); }} className="font-semibold text-indigo-400 hover:text-indigo-300">
+            {isLoginView ? "Regístrate aquí" : "Inicia sesión"}
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+};
+
+const LoginView = ({ onError }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (err) {
+      onError(err);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <form onSubmit={handleLogin} className="space-y-4">
+      <h2 className="text-2xl font-bold text-center">Iniciar Sesión</h2>
+      <AuthInput id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@email.com" icon={<Icon path={ICONS.email} />} />
+      <AuthInput id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Contraseña" icon={<Icon path={ICONS.lock} />} />
+      <button type="submit" disabled={loading} className="w-full px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-500 disabled:bg-gray-600 flex items-center justify-center gap-2">
+        {loading ? <Spinner/> : 'Entrar'}
+      </button>
+    </form>
+  );
+};
+
+const RegisterView = ({ onError }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    if (password.length < 6) {
+      onError({ code: 'auth/weak-password' });
+      setLoading(false);
+      return;
+    }
+    try {
+      await createUserWithEmailAndPassword(auth, email, password);
+    } catch (err) {
+      onError(err);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <form onSubmit={handleRegister} className="space-y-4">
+      <h2 className="text-2xl font-bold text-center">Crear Cuenta</h2>
+      <AuthInput id="email-reg" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@email.com" icon={<Icon path={ICONS.email} />} />
+      <AuthInput id="password-reg" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Contraseña (mín. 6 caracteres)" icon={<Icon path={ICONS.lock} />} />
+      <button type="submit" disabled={loading} className="w-full px-6 py-3 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-500 disabled:bg-gray-600 flex items-center justify-center gap-2">
+        {loading ? <Spinner/> : 'Registrarse'}
+      </button>
+    </form>
+  );
+};
+
+
+// --- Aplicación Principal (Después del Login) ---
 const MainApp = ({ user }) => {
   const [view, setView] = useState('dashboard');
   const [activeConversationId, setActiveConversationId] = useState(null);
@@ -82,18 +215,13 @@ const MainApp = ({ user }) => {
 
   const renderView = () => {
     switch(view) {
-      case 'dashboard':
-        return <DashboardView userId={user.uid} />;
-      case 'conversations':
-        return <ConversationsView userId={user.uid} onViewConversation={handleViewConversation} />;
-      case 'conversationDetail':
-        return <ConversationDetailView conversationId={activeConversationId} onBack={() => setView('conversations')} />;
-      case 'configuracion':
-        return <ConfigView userId={user.uid} />;
-      default:
-        return <DashboardView userId={user.uid} />;
+      case 'dashboard': return <DashboardView userId={user.uid} />;
+      case 'conversations': return <ConversationsView userId={user.uid} onViewConversation={handleViewConversation} />;
+      case 'conversationDetail': return <ConversationDetailView conversationId={activeConversationId} onBack={() => setView('conversations')} />;
+      case 'configuracion': return <ConfigView userId={user.uid} />;
+      default: return <DashboardView userId={user.uid} />;
     }
-  }
+  };
 
   return (
     <div className="bg-gray-900 text-white min-h-screen font-sans">
@@ -118,23 +246,72 @@ const MainApp = ({ user }) => {
   );
 };
 
+const DashboardView = ({ userId }) => {
+    const [stats, setStats] = useState({ recoveredValue: 0, recoveredCarts: 0 });
+    const [carts, setCarts] = useState([]);
+
+    useEffect(() => {
+        if (!userId) return;
+        const q = query(collection(db, "carritosAbandonados"), where("tiendaId", "==", userId), orderBy("timestamp", "desc"));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            let totalValue = 0, recoveredCount = 0;
+            const cartsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            cartsData.forEach(cart => {
+                if (cart.recuperado) {
+                    recoveredCount++;
+                    totalValue += cart.productos.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+                }
+            });
+            setCarts(cartsData);
+            setStats({ recoveredValue: totalValue, recoveredCarts: recoveredCount });
+        });
+        return () => unsubscribe();
+    }, [userId]);
+
+    return (
+        <div>
+            <h2 className="text-3xl font-bold mb-6">Dashboard de Rendimiento</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                <StatCard icon={<Icon path={ICONS.dollar} />} label="Ingresos Recuperados" value={`€${stats.recoveredValue.toFixed(2)}`} color="text-green-400" />
+                <StatCard icon={<Icon path={ICONS.cart} />} label="Carritos Salvados" value={stats.recoveredCarts} color="text-blue-400" />
+                <StatCard icon={<Icon path={ICONS.zap} />} label="Total Carritos Gestionados" value={carts.length} color="text-indigo-400" />
+            </div>
+            <h3 className="text-2xl font-bold mb-4">Actividad Reciente de Carritos</h3>
+            <div className="bg-gray-800/50 rounded-lg border border-gray-700">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="border-b border-gray-700">
+                            <tr><th className="p-4">Estado</th><th className="p-4">Cliente</th><th className="p-4">Valor</th><th className="p-4">Fecha</th><th className="p-4">Productos</th></tr>
+                        </thead>
+                        <tbody>
+                            {carts.slice(0, 10).map(cart => (
+                            <tr key={cart.id} className="border-b border-gray-800 hover:bg-gray-800 transition-colors">
+                                <td className="p-4"><span className={`px-2 py-1 text-xs rounded-full ${cart.recuperado ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{cart.recuperado ? 'Recuperado' : 'Pendiente'}</span></td>
+                                <td className="p-4 font-mono text-sm">{cart.cliente ? cart.cliente.replace('whatsapp:', '') : 'N/A'}</td>
+                                <td className="p-4">€{cart.productos ? cart.productos.reduce((s, i) => s + (i.precio * i.cantidad), 0).toFixed(2) : '0.00'}</td>
+                                <td className="p-4 text-sm text-gray-400">{cart.timestamp ? new Date(cart.timestamp.seconds * 1000).toLocaleDateString() : 'N/A'}</td>
+                                <td className="p-4 text-sm text-gray-300">{cart.productos ? cart.productos.map(p => p.nombre).join(', ') : 'N/A'}</td>
+                            </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                    {carts.length === 0 && <p className="p-4 text-center text-gray-500">Aún no hay actividad de carritos para mostrar.</p>}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const ConversationsView = ({ userId, onViewConversation }) => {
   const [conversations, setConversations] = useState([]);
-
   useEffect(() => {
-    const q = query(
-      collection(db, 'conversaciones'), 
-      where('tiendaId', '==', userId),
-      orderBy('lastUpdate', 'desc'),
-      limit(20)
-    );
+    if (!userId) return;
+    const q = query(collection(db, 'conversaciones'), where('tiendaId', '==', userId), orderBy('lastUpdate', 'desc'), limit(20));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const convos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setConversations(convos);
+      setConversations(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
     return () => unsubscribe();
   }, [userId]);
-
   return (
     <div>
       <h2 className="text-3xl font-bold mb-6">Últimas Conversaciones</h2>
@@ -153,17 +330,15 @@ const ConversationsView = ({ userId, onViewConversation }) => {
 
 const ConversationDetailView = ({ conversationId, onBack }) => {
     const [messages, setMessages] = useState([]);
-
     useEffect(() => {
+        if (!conversationId) return;
         const messagesRef = collection(db, 'conversaciones', conversationId, 'mensajes');
         const q = query(messagesRef, orderBy('timestamp'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const msgs = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
-            setMessages(msgs);
+            setMessages(snapshot.docs.map(doc => ({id: doc.id, ...doc.data()})));
         });
         return () => unsubscribe();
     }, [conversationId]);
-    
     return (
         <div>
             <button onClick={onBack} className="mb-6 text-indigo-400 hover:text-indigo-300">&larr; Volver a todas las conversaciones</button>
@@ -185,28 +360,45 @@ const ConfigView = ({ userId }) => {
   const [config, setConfig] = useState({});
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState(null);
-
   useEffect(() => {
+      if (!userId) return;
       const unsub = onSnapshot(doc(db, "clientes", userId), (doc) => {
           if (doc.exists()) setConfig(doc.data());
       });
       return () => unsub();
   }, [userId]);
-
   const handleChange = (e) => setConfig(prev => ({ ...prev, [e.target.id]: e.target.value }));
+  const handleCopyToClipboard = (text) => {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        setMessage({ type: 'success', text: '¡API Key copiada!' });
+      } catch (err) { setMessage({ type: 'error', text: 'No se pudo copiar.' }); }
+      document.body.removeChild(textArea);
+  };
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSaving(true);
     let finalConfig = {...config};
-    if (!finalConfig.apiKey) finalConfig.apiKey = crypto.randomUUID();
+    if (!finalConfig.apiKey) {
+      if (window.crypto && window.crypto.randomUUID) {
+        finalConfig.apiKey = window.crypto.randomUUID();
+      } else {
+        // Fallback for older browsers
+        finalConfig.apiKey = 'fb-' + Date.now() + Math.random().toString(36).substring(2, 15);
+      }
+    }
     try {
         await setDoc(doc(db, "clientes", userId), finalConfig, { merge: true });
         setMessage({ type: 'success', text: '¡Configuración guardada!' });
-    } catch(error) {
-        setMessage({ type: 'error', text: 'Error al guardar.' });
+        setConfig(finalConfig);
+    } catch(error) { setMessage({ type: 'error', text: 'Error al guardar.' });
     } finally { setIsSaving(false); }
   };
-
   return (
     <div className="max-w-4xl mx-auto">
       <h2 className="text-3xl font-bold mb-6">Configuración</h2>
@@ -219,7 +411,7 @@ const ConfigView = ({ userId }) => {
             {config.apiKey && (
               <div>
                 <h3 className="text-lg font-semibold text-gray-300 flex items-center gap-3 mb-2"><span className="text-indigo-400"><Icon path={ICONS.key}/></span>Tu API Key Universal</h3>
-                <div className="flex items-center gap-2"><input type="text" value={config.apiKey} readOnly className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 font-mono"/><button type="button" onClick={() => navigator.clipboard.writeText(config.apiKey)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded-md"><Icon path={ICONS.clipboard} className="w-5 h-5"/></button></div>
+                <div className="flex items-center gap-2"><input type="text" value={config.apiKey} readOnly className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 font-mono"/><button type="button" onClick={() => handleCopyToClipboard(config.apiKey)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded-md"><Icon path={ICONS.clipboard} className="w-5 h-5"/></button></div>
               </div>
             )}
           </div>
@@ -231,7 +423,7 @@ const ConfigView = ({ userId }) => {
         <footer className="p-6 bg-gray-900/50 border-t border-gray-700 flex items-center justify-end">
           <button type="submit" disabled={isSaving} className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-500 disabled:bg-gray-600 flex items-center gap-2">
             {isSaving ? <Spinner /> : <Icon path={ICONS.check} className="w-5 h-5"/>}
-            {isSaving ? 'Guardando...' : 'Guardar Cambios'}
+            {isSaving ? 'Guardando...' : 'Guardar y Generar Clave'}
           </button>
         </footer>
       </form>
@@ -239,61 +431,15 @@ const ConfigView = ({ userId }) => {
     </div>
   );
 };
-
-
-// El resto de componentes (DashboardView, AuthFlow, etc.) se mantienen igual, pero se omiten aquí por brevedad.
-// Solo se incluye lo modificado o lo necesario para el contexto completo de MainApp y la nueva funcionalidad.
-// Los componentes de UI (Input, NavItem, etc.) no cambian.
-
-const DashboardView = ({ userId }) => {
-    const [stats, setStats] = useState({ recoveredValue: 0, recoveredCarts: 0 });
-    const [carts, setCarts] = useState([]);
-    useEffect(() => {
-        const q = query(collection(db, "carritosAbandonados"), where("tiendaId", "==", userId));
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-            let totalValue = 0, recoveredCount = 0;
-            const cartsData = [];
-            querySnapshot.forEach((doc) => {
-                const cart = { id: doc.id, ...doc.data() };
-                cartsData.push(cart);
-                if (cart.recuperado) {
-                    recoveredCount++;
-                    totalValue += cart.productos.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
-                }
-            });
-            cartsData.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
-            setCarts(cartsData);
-            setStats({ recoveredValue: totalValue, recoveredCarts: recoveredCount });
-        });
-        return () => unsubscribe();
-    }, [userId]);
-
-    return (
-        <div>
-            <h2 className="text-3xl font-bold mb-6">Dashboard de Rendimiento</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                {/* StatCards */}
-            </div>
-            <h3 className="text-2xl font-bold mb-4">Actividad Reciente de Carritos</h3>
-            {/* Tabla de Carritos */}
-        </div>
-    );
-};
-
-const AuthFlow = () => { /* ... */ return <div>Auth Flow</div> };
-const Spinner = () => (
-  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+const AuthInput = ({ id, type, value, onChange, placeholder, icon }) => (
+  <div className="relative">
+    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">{icon}</span>
+    <input id={id} type={type} value={value} onChange={onChange} placeholder={placeholder} className="w-full bg-gray-800 border border-gray-700 rounded-md pl-10 pr-3 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" required />
+  </div>
 );
-const NavItem = ({ icon, label, isActive, onClick }) => (
-  <li className={`mb-2 p-3 rounded-lg cursor-pointer flex items-center gap-4 transition-colors ${isActive ? 'bg-indigo-600/30 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`} onClick={onClick}>
-    {icon}
-    <span className="font-semibold">{label}</span>
-  </li>
+const StatCard = ({ icon, label, value, color }) => (
+  <div className="bg-gray-800/50 p-6 rounded-lg border border-gray-700 flex items-center gap-6"><div className={`p-3 bg-gray-900 rounded-full ${color}`}>{React.cloneElement(icon, { className: 'w-8 h-8' })}</div><div><p className="text-gray-400 text-sm">{label}</p><p className="text-3xl font-bold">{value}</p></div></div>
 );
-const Notification = ({ message, onDismiss }) => {
-  useEffect(() => { const timer = setTimeout(() => onDismiss(), 4000); return () => clearTimeout(timer); }, [onDismiss]);
-  return (<div className={`fixed bottom-5 right-5 flex items-center gap-4 p-4 rounded-lg shadow-lg z-50 ${message.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}><Icon path={ICONS.check} className="w-5 h-5" /><p>{message.text}</p></div>);
-};
 const Input = ({ id, label, value, onChange, placeholder, icon }) => (
   <div>
     <h3 className="text-lg font-semibold text-gray-300 flex items-center gap-3 mb-2"><span className="text-indigo-400">{icon}</span>{label}</h3>
@@ -306,3 +452,7 @@ const Textarea = ({ id, label, value, onChange, rows=8 }) => (
     <textarea id={id} value={value} onChange={onChange} rows={rows} className="flex-grow w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"></textarea>
   </div>
 );
+const Notification = ({ message, onDismiss }) => {
+  useEffect(() => { const timer = setTimeout(() => onDismiss(), 4000); return () => clearTimeout(timer); }, [onDismiss]);
+  return (<div className={`fixed bottom-5 right-5 flex items-center gap-4 p-4 rounded-lg shadow-lg z-50 ${message.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}><Icon path={ICONS.check} className="w-5 h-5" /><p>{message.text}</p></div>);
+};
