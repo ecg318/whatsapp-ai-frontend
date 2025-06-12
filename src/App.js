@@ -165,7 +165,7 @@ const RegisterView = () => {
       await createUserWithEmailAndPassword(auth, email, password);
     } catch (err) {
       // --- LÓGICA DE ERROR MEJORADA ---
-      console.error("Error de registro:", err.code);
+      console.error("Error de registro:", err.code, err.message);
       switch (err.code) {
         case 'auth/email-already-in-use':
           setError("Este email ya está registrado. Por favor, inicia sesión.");
@@ -177,7 +177,8 @@ const RegisterView = () => {
           setError("La contraseña es demasiado débil. Debe tener al menos 6 caracteres.");
           break;
         default:
-          setError("Ha ocurrido un error inesperado al crear la cuenta.");
+          // ¡CAMBIO CLAVE! Mostramos el error real de Firebase.
+          setError(`Error: ${err.message}`);
           break;
       }
     }
