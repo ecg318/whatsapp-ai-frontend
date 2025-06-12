@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
+import { 
+  getAuth, 
+  onAuthStateChanged,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut
+} from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot, collection, query, where } from 'firebase/firestore';
 
 // --- Iconos (Lucide) ---
@@ -22,143 +28,233 @@ const ICONS = {
   dollar: "M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6",
   cart: "M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18",
   clipboard: "M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2",
+  logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
+  email: "M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z",
+  lock: "M7 11V7a5 5 0 0 1 10 0v4M5 11h14"
 };
+
+
+// --- Componente de Configuración Global ---
+let db;
+let auth;
+
+const initializeFirebase = () => {
+  try {
+    // Las claves ahora se leen de forma segura desde las variables de entorno.
+    const firebaseConfig = {
+      apiKey: process.env.REACT_APP_API_KEY,
+      authDomain: process.env.REACT_APP_AUTH_DOMAIN,
+      projectId: process.env.REACT_APP_PROJECT_ID,
+      storageBucket: process.env.REACT_APP_STORAGE_BUCKET,
+      messagingSenderId: process.env.REACT_APP_MESSAGING_SENDER_ID,
+      appId: process.env.REACT_APP_APP_ID,
+    };
+
+    if (!firebaseConfig.apiKey) {
+        console.error("Firebase config not found. Make sure you have a .env.local file with your REACT_APP_... variables.");
+        return;
+    }
+
+    const app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    auth = getAuth(app);
+  } catch (error) {
+    console.error("Error initializing Firebase:", error);
+  }
+};
+
+initializeFirebase();
+
 
 // --- Componente Principal ---
 export default function App() {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!auth) {
+        setLoading(false);
+        return;
+    }
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  if (loading) {
+    return <div className="bg-gray-900 text-white min-h-screen flex items-center justify-center"><Spinner /></div>;
+  }
+
+  return user ? <MainApp user={user} /> : <AuthFlow />;
+}
+
+
+// --- Flujo de Autenticación (Login / Registro) ---
+const AuthFlow = () => {
+  const [isLoginView, setIsLoginView] = useState(true);
+
+  return (
+    <div className="bg-gray-900 min-h-screen flex flex-col items-center justify-center text-white p-4">
+      <div className="w-full max-w-md">
+        <h1 className="text-4xl font-bold text-center mb-2">Asistente AI</h1>
+        <p className="text-gray-400 text-center mb-8">La herramienta para recuperar carritos y automatizar el soporte.</p>
+        
+        {isLoginView ? <LoginView /> : <RegisterView />}
+
+        <p className="text-center text-sm text-gray-500 mt-6">
+          {isLoginView ? "¿No tienes cuenta? " : "¿Ya tienes una cuenta? "}
+          <button onClick={() => setIsLoginView(!isLoginView)} className="font-semibold text-indigo-400 hover:text-indigo-300">
+            {isLoginView ? "Regístrate aquí" : "Inicia sesión"}
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+};
+
+const LoginView = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (err) {
+      setError("Email o contraseña incorrectos. Por favor, inténtalo de nuevo.");
+      console.error(err);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <form onSubmit={handleLogin} className="space-y-4">
+      <h2 className="text-2xl font-bold text-center">Iniciar Sesión</h2>
+      <AuthInput id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@email.com" icon={<Icon path={ICONS.email} />} />
+      <AuthInput id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Contraseña" icon={<Icon path={ICONS.lock} />} />
+      {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+      <button type="submit" disabled={loading} className="w-full px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-500 disabled:bg-gray-600 flex items-center justify-center gap-2">
+        {loading ? <Spinner/> : 'Entrar'}
+      </button>
+    </form>
+  );
+};
+
+const RegisterView = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    if (password.length < 6) {
+      setError("La contraseña debe tener al menos 6 caracteres.");
+      setLoading(false);
+      return;
+    }
+    try {
+      await createUserWithEmailAndPassword(auth, email, password);
+    } catch (err) {
+      setError("No se pudo crear la cuenta. Puede que el email ya esté en uso.");
+      console.error(err);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <form onSubmit={handleRegister} className="space-y-4">
+      <h2 className="text-2xl font-bold text-center">Crear Cuenta</h2>
+      <AuthInput id="email-reg" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@email.com" icon={<Icon path={ICONS.email} />} />
+      <AuthInput id="password-reg" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Contraseña (mín. 6 caracteres)" icon={<Icon path={ICONS.lock} />} />
+      {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+      <button type="submit" disabled={loading} className="w-full px-6 py-3 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-500 disabled:bg-gray-600 flex items-center justify-center gap-2">
+        {loading ? <Spinner/> : 'Registrarse'}
+      </button>
+    </form>
+  );
+};
+
+
+// --- Aplicación Principal (Después del Login) ---
+const MainApp = ({ user }) => {
   const [view, setView] = useState('dashboard');
-  const [db, setDb] = useState(null);
-  const [userId, setUserId] = useState(null);
-  const [isAuthReady, setIsAuthReady] = useState(false);
   const [config, setConfig] = useState({});
   const [abandonedCarts, setAbandonedCarts] = useState([]);
   const [stats, setStats] = useState({ recoveredValue: 0, recoveredCarts: 0 });
-  const [status, setStatus] = useState('inactive');
   const [message, setMessage] = useState(null);
 
   useEffect(() => {
-    try {
-      // MUY IMPORTANTE: Rellena estos datos con los de tu proyecto de Firebase
-      const localFirebaseConfig = { 
-        apiKey: "AIzaSyBCAir0LMGqsUYRK933P-CqWa2zGbki3yQ", // <-- Pega tu API Key de Firebase
-        authDomain: "soporteecommerceai.firebaseapp.com",
-        projectId: "soporteecommerceai",
-        storageBucket: "soporteecommerceai.appspot.com",
-        messagingSenderId: "16186429362", // <-- Pega tu Messaging Sender ID
-        appId: "1:16186429362:web:91a216598899088753deab" // <-- Pega tu App ID
-      };
-      const firebaseConfig = typeof window.__firebase_config !== 'undefined' ? JSON.parse(window.__firebase_config) : localFirebaseConfig;
-      const initialAuthToken = typeof window.__initial_auth_token !== 'undefined' ? window.__initial_auth_token : null;
-      
-      const app = initializeApp(firebaseConfig);
-      const firestoreDb = getFirestore(app);
-      const firebaseAuth = getAuth(app);
-      setDb(firestoreDb);
-
-      const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
-        if (user) {
-          setUserId(user.uid);
-          setIsAuthReady(true);
-        } else {
-          try {
-            if (initialAuthToken) {
-              await signInWithCustomToken(firebaseAuth, initialAuthToken);
-            } else {
-              await signInAnonymously(firebaseAuth);
-            }
-          } catch (authError) {
-            console.error("Error en el intento de inicio de sesión:", authError);
-            setMessage({ type: 'error', text: `Error de autenticación: ${authError.message}` });
-            setIsAuthReady(true);
-          }
-        }
+    if (user) {
+      const configRef = doc(db, "clientes", user.uid);
+      const unsubscribeConfig = onSnapshot(configRef, (docSnap) => {
+        if (docSnap.exists()) setConfig(docSnap.data());
       });
-      return () => unsubscribe();
-    } catch (error) {
-      console.error("Error initializing Firebase:", error);
-      setMessage({ type: 'error', text: `Error al inicializar Firebase. Revisa que has pegado bien los datos en localFirebaseConfig. Error: ${error.message}` });
-      setIsAuthReady(true);
-    }
-  }, []);
 
-  useEffect(() => {
-    if (db && userId && isAuthReady) {
-      const configRef = doc(db, "clientes", userId);
-      const unsubscribe = onSnapshot(configRef, (docSnap) => {
-        if (docSnap.exists()) {
-          setConfig(docSnap.data());
-          setStatus(docSnap.data().status || 'inactive');
-        }
-      }, (error) => console.error("Error fetching config:", error));
-      return () => unsubscribe();
-    }
-  }, [db, userId, isAuthReady]);
-
-  useEffect(() => {
-    if (db && userId && isAuthReady) {
       const cartsRef = collection(db, "carritosAbandonados");
-      const q = query(cartsRef, where("tiendaId", "==", userId));
-      const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        let totalValue = 0;
-        let recoveredCount = 0;
+      const q = query(cartsRef, where("tiendaId", "==", user.uid));
+      const unsubscribeCarts = onSnapshot(q, (querySnapshot) => {
+        let totalValue = 0, recoveredCount = 0;
         const cartsData = [];
         querySnapshot.forEach((doc) => {
           const cart = { id: doc.id, ...doc.data() };
           cartsData.push(cart);
-          if (cart.recuperado === true) {
+          if (cart.recuperado) {
             recoveredCount++;
-            const cartValue = cart.productos.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
-            totalValue += cartValue;
+            totalValue += cart.productos.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
           }
         });
         cartsData.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
         setAbandonedCarts(cartsData);
         setStats({ recoveredValue: totalValue, recoveredCarts: recoveredCount });
-      }, (error) => console.error("Error fetching abandoned carts:", error));
-      return () => unsubscribe();
-    }
-  }, [db, userId, isAuthReady]);
+      });
 
-  if (!isAuthReady) {
-    return <div className="bg-gray-900 text-white min-h-screen flex items-center justify-center"><Spinner /></div>;
-  }
+      return () => {
+        unsubscribeConfig();
+        unsubscribeCarts();
+      };
+    }
+  }, [user]);
+
+  const handleLogout = async () => {
+    await signOut(auth);
+  };
 
   return (
     <div className="bg-gray-900 text-white min-h-screen font-sans">
-      {message && message.type === 'error' && (
-         <div className="absolute top-0 left-0 w-full h-full bg-gray-900/90 flex items-center justify-center z-50 p-4">
-            <div className="bg-red-900/50 border border-red-700 p-8 rounded-lg text-center max-w-lg">
-                <h2 className="text-2xl font-bold mb-4">Error de Conexión</h2>
-                <p className="break-words">{message.text}</p>
-                <button onClick={() => setMessage(null)} className="mt-6 bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded">
-                  Entendido
-                </button>
-            </div>
-        </div>
-      )}
       <div className="flex">
         <nav className="w-64 bg-gray-950/50 p-4 border-r border-gray-800 h-screen sticky top-0 flex flex-col">
-          <h1 className="text-2xl font-bold text-white mb-10">Asistente AI</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-white mb-2">Asistente AI</h1>
+            <p className="text-xs text-gray-400 truncate mb-10" title={user.email}>{user.email}</p>
+          </div>
           <ul>
             <NavItem icon={<Icon path={ICONS.layout} />} label="Dashboard" isActive={view === 'dashboard'} onClick={() => setView('dashboard')} />
             <NavItem icon={<Icon path={ICONS.settings} />} label="Configuración" isActive={view === 'configuracion'} onClick={() => setView('configuracion')} />
           </ul>
-           <div className="mt-auto text-xs text-gray-600">
-             <p className="font-semibold text-gray-500">USER ID</p>
-             <p className="break-words">{userId}</p>
+           <div className="mt-auto">
+             <NavItem icon={<Icon path={ICONS.logout} />} label="Cerrar Sesión" isActive={false} onClick={handleLogout} />
            </div>
         </nav>
         <main className="flex-1 p-8 overflow-y-auto h-screen">
           {view === 'dashboard' && <DashboardView stats={stats} carts={abandonedCarts} />}
-          {view === 'configuracion' && <ConfigView config={config} db={db} userId={userId} setMessage={setMessage} />}
+          {view === 'configuracion' && <ConfigView config={config} db={db} userId={user.uid} setMessage={setMessage} />}
         </main>
       </div>
-       {message && message.type === 'success' && <Notification message={message} onDismiss={() => setMessage(null)} />}
+       {message && <Notification message={message} onDismiss={() => setMessage(null)} />}
     </div>
   );
 }
 
-// --- Vistas y Componentes ---
+// --- Componentes (sin cambios) ---
 const DashboardView = ({ stats, carts }) => (
   <div>
     <h2 className="text-3xl font-bold mb-6">Dashboard de Rendimiento</h2>
@@ -239,13 +335,8 @@ const ConfigView = ({ config, db, userId, setMessage }) => {
             <Input id="whatsapp" label="Nº de WhatsApp de Twilio" value={formData.whatsapp || ''} onChange={handleChange} placeholder="whatsapp:+14155238886" icon={<Icon path={ICONS.key} />} />
             {formData.apiKey && (
                 <div>
-                    <h3 className="text-lg font-semibold text-gray-300 flex items-center gap-3 mb-2">
-                        <span className="text-indigo-400"><Icon path={ICONS.key}/></span>Tu API Key Universal
-                    </h3>
-                    <div className="flex items-center gap-2">
-                        <input type="text" value={formData.apiKey} readOnly className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-white placeholder-gray-500 font-mono"/>
-                        <button type="button" onClick={() => handleCopyToClipboard(formData.apiKey)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded-md transition-colors" title="Copiar al portapapeles"><Icon path={ICONS.clipboard} className="w-5 h-5"/></button>
-                    </div>
+                    <h3 className="text-lg font-semibold text-gray-300 flex items-center gap-3 mb-2"><span className="text-indigo-400"><Icon path={ICONS.key}/></span>Tu API Key Universal</h3>
+                    <div className="flex items-center gap-2"><input type="text" value={formData.apiKey} readOnly className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-white placeholder-gray-500 font-mono"/><button type="button" onClick={() => handleCopyToClipboard(formData.apiKey)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded-md transition-colors" title="Copiar al portapapeles"><Icon path={ICONS.clipboard} className="w-5 h-5"/></button></div>
                     <p className="text-xs text-gray-500 mt-2">Usa esta clave en la cabecera 'X-API-Key' de tus webhooks.</p>
                 </div>
             )}
@@ -265,6 +356,14 @@ const ConfigView = ({ config, db, userId, setMessage }) => {
     </div>
   );
 };
+
+const AuthInput = ({ id, type, value, onChange, placeholder, icon }) => (
+  <div className="relative">
+    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">{icon}</span>
+    <input id={id} type={type} value={value} onChange={onChange} placeholder={placeholder} className="w-full bg-gray-800 border border-gray-700 rounded-md pl-10 pr-3 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" required />
+  </div>
+);
+
 const NavItem = ({ icon, label, isActive, onClick }) => (
   <li className={`mb-2 p-3 rounded-lg cursor-pointer flex items-center gap-4 transition-colors ${isActive ? 'bg-indigo-600/30 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`} onClick={onClick}>
     {icon}
@@ -287,7 +386,7 @@ const Textarea = ({ id, label, value, onChange, rows=8 }) => (
   </div>
 );
 const Spinner = () => (
-  <svg className="animate-spin h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
 );
 const Notification = ({ message, onDismiss }) => {
   useEffect(() => { const timer = setTimeout(() => onDismiss(), 4000); return () => clearTimeout(timer); }, [onDismiss]);
