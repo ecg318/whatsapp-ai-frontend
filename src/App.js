@@ -218,7 +218,7 @@ const MainApp = ({ user }) => {
         if (doc.exists()) {
             setConfig(doc.data());
         } else {
-            setConfig({ plan: 'none' }); // Si no hay doc, es un usuario sin plan
+            setConfig({ plan: 'none' }); 
         }
     });
     return () => unsub();
@@ -423,12 +423,10 @@ const ConfigView = ({ userId, config }) => {
 
 const SubscriptionFlow = ({ user }) => {
     const [loadingPriceId, setLoadingPriceId] = useState(null);
-    // --- ¡IMPORTANTE! ---
-    // Pega aquí los IDs de los precios que has creado en tu panel de Stripe.
     const plans = {
-        esencial: 'price_1RZWb9GbyaNkdiWSmCILdw4m',
-        profesional: 'price_1RZWaOGbyaNkdiWSFcnPwOin',
-        premium: 'price_1RZWYEGbyaNkdiWSzPuSd3HS'
+        esencial: 'price_1Pxxxxxxxxxxxxxxxxx',
+        profesional: 'price_1Pyyyyyyyyyyyyyyyy',
+        premium: 'price_1Pzzzzzzzzzzzzzzzz'
     };
     const handleSubscribe = async (priceId) => {
         if (!priceId.startsWith('price_')) {
