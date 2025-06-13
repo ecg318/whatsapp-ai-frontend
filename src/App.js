@@ -234,6 +234,7 @@ const MainApp = ({ user }) => {
   useEffect(() => {
     const queryParams = new URLSearchParams(window.location.search);
     if (queryParams.get('payment_success')) {
+        console.log('🎉 Payment success detectado en URL');
         setPaymentStatus('success');
         window.history.replaceState(null, null, window.location.pathname);
     }
@@ -241,16 +242,24 @@ const MainApp = ({ user }) => {
 
   useEffect(() => {
     if (!user) return;
+    
+    console.log('👤 Escuchando cambios de config para usuario:', user.uid);
+    
     const unsub = onSnapshot(doc(db, "clientes", user.uid), (doc) => {
+        const data = doc.data();
+        console.log('📊 Config actualizada:', data);
+        
         if (doc.exists()) {
-            setConfig(doc.data());
+            setConfig(data);
         } else {
+            console.log('📄 Documento no existe, creando config por defecto');
             setConfig({ plan: 'none' }); 
         }
     });
     return () => unsub();
   }, [user]);
 
+  // Resto del useEffect para rutas...
   useEffect(() => {
     const pathParts = window.location.pathname.split('/').filter(p => p);
     if (pathParts[0] === 'conversations' && pathParts[1]) {
@@ -269,16 +278,27 @@ const MainApp = ({ user }) => {
   };
 
   if (config === null) {
+      console.log('⏳ Config aún cargando...');
       return <div className="bg-gray-900 min-h-screen flex items-center justify-center"><Spinner isLarge={true} /></div>;
   }
   
+  console.log('🔍 Estado actual:', { 
+    paymentStatus, 
+    plan: config.plan, 
+    status: config.status 
+  });
+  
   if (paymentStatus === 'success' && (!config.plan || config.plan === 'none')) {
+      console.log('💳 Mostrando PaymentSuccessView');
       return <PaymentSuccessView user={user}/>;
   }
 
   if (!config.plan || config.plan === 'none') {
+      console.log('📋 Mostrando SubscriptionFlow');
       return <SubscriptionFlow user={user} />;
   }
+  
+  console.log('🏠 Mostrando MainApp dashboard');
   
   const renderView = () => {
     switch(view) {
@@ -499,45 +519,92 @@ const SubscriptionFlow = ({ user }) => {
 
 
 const PaymentSuccessView = ({ user }) => {
-  useEffect(() => {
-    // 1) Fallback visual mientras esperamos
-    const timer = setTimeout(() => {
-      // Si tras 30s sigue sin plan, recargamos forzosamente (opcional)
-      window.location.href = '/';
-    }, 30000);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isWaiting, setIsWaiting] = useState(true);
 
-    // 2) Escuchamos el documento del cliente
-    const unsub = onSnapshot(
-      doc(db, 'clientes', user.uid),
-      (snap) => {
-        const data = snap.data() || {};
-        if (data.plan && data.plan !== 'none') {
-          // ¡Plan ya asignado! Redirigimos al dashboard
-          clearTimeout(timer);
-          unsub();
-          window.location.href = '/';
+  useEffect(() => {
+    let unsub;
+    let timer;
+
+    const checkPlanStatus = () => {
+      unsub = onSnapshot(
+        doc(db, 'clientes', user.uid),
+        (snap) => {
+          const data = snap.data() || {};
+          console.log('Plan status check:', data.plan, data.status);
+          
+          if (data.plan && data.plan !== 'none' && data.status === 'active') {
+            // ¡Plan ya asignado y activo!
+            console.log('✅ Plan activado, redirigiendo...');
+            clearTimeout(timer);
+            if (unsub) unsub();
+            window.location.href = '/';
+          }
+        },
+        (err) => {
+          console.error('Error al escuchar plan:', err);
+          // Reintentar después de 5 segundos
+          if (retryCount < 6) { // máximo 6 reintentos (30 segundos)
+            setTimeout(() => {
+              setRetryCount(prev => prev + 1);
+            }, 5000);
+          } else {
+            // Después de 30 segundos, mostrar opción manual
+            setIsWaiting(false);
+          }
         }
-      },
-      (err) => {
-        console.error('Error al escuchar plan de suscripción:', err);
-      }
-    );
+      );
+    };
+
+    // Iniciar verificación
+    checkPlanStatus();
+
+    // Timeout de seguridad (2 minutos en lugar de 30 segundos)
+    timer = setTimeout(() => {
+      console.log('⚠️ Timeout alcanzado, mostrando opción manual');
+      setIsWaiting(false);
+    }, 120000);
 
     return () => {
       clearTimeout(timer);
-      unsub();
+      if (unsub) unsub();
     };
-  }, [user]);
+  }, [user, retryCount]);
+
+  const handleManualRedirect = () => {
+    window.location.href = '/';
+  };
 
   return (
     <div className="bg-gray-900 min-h-screen flex flex-col items-center justify-center text-white p-4">
       <div className="text-center">
         <Icon path={ICONS.check} className="w-16 h-16 text-green-400 mx-auto mb-4" />
         <h1 className="text-4xl font-bold mb-4">¡Pago Completado!</h1>
-        <p className="text-gray-400 mb-8">
-          Estamos activando tu plan. En cuanto sea efectivo, te llevamos al panel.
-        </p>
-        <Spinner isLarge={true} />
+        
+        {isWaiting ? (
+          <>
+            <p className="text-gray-400 mb-8">
+              Estamos activando tu plan. En cuanto sea efectivo, te llevamos al panel.
+            </p>
+            <Spinner isLarge={true} />
+            <p className="text-sm text-gray-500 mt-4">
+              Reintento {retryCount + 1}/6...
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-gray-400 mb-8">
+              El proceso está tomando más tiempo del esperado. 
+              Tu pago fue procesado correctamente.
+            </p>
+            <button 
+              onClick={handleManualRedirect}
+              className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-500"
+            >
+              Ir al Dashboard
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
