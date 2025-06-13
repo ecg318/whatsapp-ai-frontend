@@ -211,6 +211,15 @@ const MainApp = ({ user }) => {
   const [view, setView] = useState('dashboard');
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [config, setConfig] = useState(null);
+  const [paymentStatus, setPaymentStatus] = useState('unknown');
+
+  useEffect(() => {
+    const queryParams = new URLSearchParams(window.location.search);
+    if (queryParams.get('payment_success')) {
+        setPaymentStatus('success');
+        window.history.replaceState(null, null, window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -245,6 +254,10 @@ const MainApp = ({ user }) => {
       return <div className="bg-gray-900 min-h-screen flex items-center justify-center"><Spinner /></div>;
   }
   
+  if (paymentStatus === 'success' && (!config.plan || config.plan === 'none')) {
+      return <PaymentSuccessView />;
+  }
+
   if (!config.plan || config.plan === 'none') {
       return <SubscriptionFlow user={user} />;
   }
@@ -423,10 +436,12 @@ const ConfigView = ({ userId, config }) => {
 
 const SubscriptionFlow = ({ user }) => {
     const [loadingPriceId, setLoadingPriceId] = useState(null);
+    // --- ¡IMPORTANTE! ---
+    // Pega aquí los IDs de los precios que has creado en tu panel de Stripe.
     const plans = {
-        esencial: 'price_1RZWYEGbyaNkdiWSzPuSd3HS', // <-- Pega aquí tu ID de precio real
-        profesional: 'price_1RZWaOGbyaNkdiWSFcnPwOin', // <-- Pega aquí tu ID de precio real
-        premium: 'price_1RZWb9GbyaNkdiWSmCILdw4m' // <-- Pega aquí tu ID de precio real
+        esencial: 'price_1Pxxxxxxxxxxxxxxxxx', 
+        profesional: 'price_1Pyyyyyyyyyyyyyyyy',
+        premium: 'price_1Pzzzzzzzzzzzzzzzz'
     };
     const handleSubscribe = async (priceId) => {
         if (!priceId.startsWith('price_')) {
@@ -434,7 +449,9 @@ const SubscriptionFlow = ({ user }) => {
             return;
         }
         setLoadingPriceId(priceId);
-        const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/create-checkout-session`, {
+        // Utilizar la URL del backend desde las variables de entorno
+        const backendUrl = process.env.REACT_APP_BACKEND_URL;
+        const response = await fetch(`${backendUrl}/create-checkout-session`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ priceId, userId: user.uid })
@@ -464,6 +481,17 @@ const SubscriptionFlow = ({ user }) => {
         </div>
     );
 };
+
+const PaymentSuccessView = () => (
+    <div className="bg-gray-900 min-h-screen flex flex-col items-center justify-center text-white p-4">
+        <div className="text-center">
+            <Icon path={ICONS.check} className="w-16 h-16 text-green-400 mx-auto mb-4" />
+            <h1 className="text-4xl font-bold mb-4">¡Pago Completado!</h1>
+            <p className="text-gray-400 mb-8">Estamos activando tu plan. Serás redirigido al panel de control en unos segundos.</p>
+            <Spinner />
+        </div>
+    </div>
+);
 
 const PlanCard = ({ title, price, features, onSubscribe, loading, recommended = false }) => (
     <div className={`p-8 rounded-lg border ${recommended ? 'border-indigo-500' : 'border-gray-700'} bg-gray-800/50 flex flex-col`}>
