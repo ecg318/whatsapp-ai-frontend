@@ -77,17 +77,19 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  if (loading) return <div className="bg-gray-900 text-white min-h-screen flex items-center justify-center"><Spinner /></div>;
+  if (loading) return <div className="bg-gray-900 text-white min-h-screen flex items-center justify-center"><Spinner isLarge={true} /></div>;
   
   return user ? <MainApp user={user} /> : <AuthFlow />;
 }
 
 // --- Componentes de UI reutilizables ---
-const Spinner = () => (
-    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-    </svg>
+const Spinner = ({ isLarge = false }) => (
+    <div className="flex justify-center items-center">
+        <svg className={`animate-spin ${isLarge ? 'h-8 w-8' : 'h-5 w-5'} text-white`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+    </div>
 );
 
 const NavItem = ({ icon, label, isActive, onClick }) => (
@@ -251,7 +253,7 @@ const MainApp = ({ user }) => {
   };
 
   if (config === null) {
-      return <div className="bg-gray-900 min-h-screen flex items-center justify-center"><Spinner /></div>;
+      return <div className="bg-gray-900 min-h-screen flex items-center justify-center"><Spinner isLarge={true} /></div>;
   }
   
   if (paymentStatus === 'success' && (!config.plan || config.plan === 'none')) {
@@ -449,7 +451,6 @@ const SubscriptionFlow = ({ user }) => {
             return;
         }
         setLoadingPriceId(priceId);
-        // Utilizar la URL del backend desde las variables de entorno
         const backendUrl = process.env.REACT_APP_BACKEND_URL;
         const response = await fetch(`${backendUrl}/create-checkout-session`, {
             method: 'POST',
@@ -482,16 +483,28 @@ const SubscriptionFlow = ({ user }) => {
     );
 };
 
-const PaymentSuccessView = () => (
-    <div className="bg-gray-900 min-h-screen flex flex-col items-center justify-center text-white p-4">
-        <div className="text-center">
-            <Icon path={ICONS.check} className="w-16 h-16 text-green-400 mx-auto mb-4" />
-            <h1 className="text-4xl font-bold mb-4">¡Pago Completado!</h1>
-            <p className="text-gray-400 mb-8">Estamos activando tu plan. Serás redirigido al panel de control en unos segundos.</p>
-            <Spinner />
+const PaymentSuccessView = () => {
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            window.location.href = '/'; 
+        }, 5000); 
+
+        return () => clearTimeout(timer);
+    }, []);
+
+    return (
+        <div className="bg-gray-900 min-h-screen flex flex-col items-center justify-center text-white p-4">
+            <div className="text-center">
+                <Icon path={ICONS.check} className="w-16 h-16 text-green-400 mx-auto mb-4" />
+                <h1 className="text-4xl font-bold mb-4">¡Pago Completado!</h1>
+                <p className="text-gray-400 mb-8">Estamos activando tu plan. Serás redirigido al panel de control en unos segundos.</p>
+                <div className="flex justify-center">
+                   <Spinner isLarge={true} />
+                </div>
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 const PlanCard = ({ title, price, features, onSubscribe, loading, recommended = false }) => (
     <div className={`p-8 rounded-lg border ${recommended ? 'border-indigo-500' : 'border-gray-700'} bg-gray-800/50 flex flex-col`}>
@@ -502,7 +515,7 @@ const PlanCard = ({ title, price, features, onSubscribe, loading, recommended = 
                 <li key={feature} className="flex items-center gap-3"><Icon path={ICONS.check} className="w-5 h-5 text-green-400"/><span>{feature}</span></li>
             ))}
         </ul>
-        <button onClick={onSubscribe} disabled={loading} className={`w-full py-3 font-semibold rounded-lg ${recommended ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-gray-600 hover:bg-gray-500'}`}>{loading ? <Spinner /> : 'Suscribirse'}</button>
+        <button onClick={onSubscribe} disabled={loading} className={`w-full py-3 font-semibold rounded-lg flex items-center justify-center ${recommended ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-gray-600 hover:bg-gray-500'}`}>{loading ? <Spinner /> : 'Suscribirse'}</button>
     </div>
 );
 const AuthInput = ({ id, type, value, onChange, placeholder, icon }) => (
