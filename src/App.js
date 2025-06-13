@@ -426,9 +426,9 @@ const SubscriptionFlow = ({ user }) => {
     // --- ¡IMPORTANTE! ---
     // Pega aquí los IDs de los precios que has creado en tu panel de Stripe.
     const plans = {
-        esencial: 'prod_SUVZckgfzpHPlK',
-        profesional: 'prod_SUVbaYV76IbrGT',
-        premium: 'prod_SUVcb7vznN6db7'
+        esencial: 'price_1RZWb9GbyaNkdiWSmCILdw4m',
+        profesional: 'price_1RZWaOGbyaNkdiWSFcnPwOin',
+        premium: 'price_1RZWYEGbyaNkdiWSzPuSd3HS'
     };
     const handleSubscribe = async (priceId) => {
         if (!priceId.startsWith('price_')) {
