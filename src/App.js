@@ -438,14 +438,11 @@ const ConfigView = ({ userId, config }) => {
 
 const SubscriptionFlow = ({ user }) => {
     const [loadingPriceId, setLoadingPriceId] = useState(null);
-    // --- ¡IMPORTANTE! ---
-    // Pega aquí los IDs de los precios que has creado en tu panel de Stripe.
     const plans = {
         esencial: 'price_1RZWYEGbyaNkdiWSzPuSd3HS', 
         profesional: 'price_1RZWaOGbyaNkdiWSFcnPwOin',
         premium: 'price_1RZWb9GbyaNkdiWSmCILdw4m'
     };
-    
     const handleSubscribe = async (priceId) => {
         if (!priceId.startsWith('price_')) {
             alert("El ID del plan no está configurado. Por favor, contacta con soporte.");
