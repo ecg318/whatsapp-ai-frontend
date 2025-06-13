@@ -276,8 +276,8 @@ const MainApp = ({ user }) => {
       return <PaymentSuccessView user={user}/>;
   }
 
-  if (config === null) {
-  return <div className="bg-gray-900 min-h-screen flex items-center justify-center"><Spinner isLarge={true} /></div>;
+    if (!config.plan || config.plan === 'none') {
+    return <SubscriptionFlow user={user} />;
   }
   
   const renderView = () => {
