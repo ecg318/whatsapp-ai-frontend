@@ -273,7 +273,7 @@ const MainApp = ({ user }) => {
   }
   
   if (paymentStatus === 'success' && (!config.plan || config.plan === 'none')) {
-      return <PaymentSuccessView />;
+      return <PaymentSuccessView user={user}/>;
   }
 
   if (!config.plan || config.plan === 'none') {
@@ -497,25 +497,50 @@ const SubscriptionFlow = ({ user }) => {
     );
 };
 
-const PaymentSuccessView = () => {
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            window.location.href = '/'; 
-        }, 5000); 
 
-        return () => clearTimeout(timer);
-    }, []);
+const PaymentSuccessView = ({ user }) => {
+  useEffect(() => {
+    // 1) Fallback visual mientras esperamos
+    const timer = setTimeout(() => {
+      // Si tras 30s sigue sin plan, recargamos forzosamente (opcional)
+      window.location.href = '/';
+    }, 30000);
 
-    return (
-        <div className="bg-gray-900 min-h-screen flex flex-col items-center justify-center text-white p-4">
-            <div className="text-center">
-                <Icon path={ICONS.check} className="w-16 h-16 text-green-400 mx-auto mb-4" />
-                <h1 className="text-4xl font-bold mb-4">¡Pago Completado!</h1>
-                <p className="text-gray-400 mb-8">Estamos activando tu plan. Serás redirigido al panel de control en unos segundos.</p>
-                <Spinner isLarge={true} />
-            </div>
-        </div>
+    // 2) Escuchamos el documento del cliente
+    const unsub = onSnapshot(
+      doc(db, 'clientes', user.uid),
+      (snap) => {
+        const data = snap.data() || {};
+        if (data.plan && data.plan !== 'none') {
+          // ¡Plan ya asignado! Redirigimos al dashboard
+          clearTimeout(timer);
+          unsub();
+          window.location.href = '/';
+        }
+      },
+      (err) => {
+        console.error('Error al escuchar plan de suscripción:', err);
+      }
     );
+
+    return () => {
+      clearTimeout(timer);
+      unsub();
+    };
+  }, [user]);
+
+  return (
+    <div className="bg-gray-900 min-h-screen flex flex-col items-center justify-center text-white p-4">
+      <div className="text-center">
+        <Icon path={ICONS.check} className="w-16 h-16 text-green-400 mx-auto mb-4" />
+        <h1 className="text-4xl font-bold mb-4">¡Pago Completado!</h1>
+        <p className="text-gray-400 mb-8">
+          Estamos activando tu plan. En cuanto sea efectivo, te llevamos al panel.
+        </p>
+        <Spinner isLarge={true} />
+      </div>
+    </div>
+  );
 };
 
 const PlanCard = ({ title, price, features, onSubscribe, loading, recommended = false }) => (
