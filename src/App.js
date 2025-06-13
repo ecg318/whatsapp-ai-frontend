@@ -445,6 +445,7 @@ const SubscriptionFlow = ({ user }) => {
         profesional: 'price_1RZWaOGbyaNkdiWSFcnPwOin',
         premium: 'price_1RZWb9GbyaNkdiWSmCILdw4m'
     };
+    
     const handleSubscribe = async (priceId) => {
         if (!priceId.startsWith('price_')) {
             alert("El ID del plan no está configurado. Por favor, contacta con soporte.");
