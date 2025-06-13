@@ -208,6 +208,21 @@ const MainApp = ({ user }) => {
   const [view, setView] = useState('dashboard');
   const [activeConversationId, setActiveConversationId] = useState(null);
 
+  // --- ¡NUEVA LÓGICA! ---
+  // Este efecto se ejecuta una sola vez cuando el componente se carga.
+  // Lee la URL del navegador para ver si es un enlace directo a una conversación.
+  useEffect(() => {
+    const pathParts = window.location.pathname.split('/').filter(p => p); // Separa la URL y quita partes vacías
+    
+    // Si la URL es como /conversations/xxxx
+    if (pathParts[0] === 'conversations' && pathParts[1]) {
+      // Decodificamos el ID de la conversación (que viene en formato URL)
+      const convoId = decodeURIComponent(pathParts[1]);
+      // Establecemos la conversación activa y cambiamos la vista
+      handleViewConversation(convoId);
+    }
+  }, []); // El array vacío [] asegura que solo se ejecute al principio.
+
   const handleViewConversation = (convoId) => {
     setActiveConversationId(convoId);
     setView('conversationDetail');
@@ -245,6 +260,7 @@ const MainApp = ({ user }) => {
     </div>
   );
 };
+
 
 const DashboardView = ({ userId }) => {
     const [stats, setStats] = useState({ recoveredValue: 0, recoveredCarts: 0 });
