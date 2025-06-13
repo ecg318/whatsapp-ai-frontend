@@ -245,7 +245,13 @@ const MainApp = ({ user }) => {
         if (doc.exists()) {
             setConfig(doc.data());
         } else {
-            setConfig({ plan: 'none' }); 
+            setConfig({
+              plan: 'none',
+              nombre: '',
+              whatsapp: '',
+              telefonoAlertas: '',
+              faqs: ''
+            });
         }
     });
     return () => unsub();
