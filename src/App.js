@@ -268,17 +268,23 @@ const MainApp = ({ user }) => {
     await signOut(auth);
   };
 
-  if (config === null) {
-      return <div className="bg-gray-900 min-h-screen flex items-center justify-center"><Spinner isLarge={true} /></div>;
-  }
-  
-  if (paymentStatus === 'success' && (!config.plan || config.plan === 'none')) {
-      return <PaymentSuccessView user={user}/>;
-  }
+      if (config === null) {
+      return (
+        <div className="bg-gray-900 min-h-screen flex items-center justify-center">
+          <Spinner isLarge />
+        </div>
+      );
+    }
 
+    // 1) Si venimos de Stripe (cualquier ruta / ?payment_success)
+    if (paymentStatus === 'success' && (!config.plan || config.plan === 'none')) {
+      return <PaymentSuccessView user={user} />;
+    }
+
+    // 2) Si NO tienes plan, enseño siempre los PlanCard
     if (!config.plan || config.plan === 'none') {
-    return <SubscriptionFlow user={user} />;
-  }
+      return <SubscriptionFlow user={user} />;
+    }
   
   const renderView = () => {
     switch(view) {
