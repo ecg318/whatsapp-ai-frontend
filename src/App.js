@@ -424,9 +424,9 @@ const ConfigView = ({ userId, config }) => {
 const SubscriptionFlow = ({ user }) => {
     const [loadingPriceId, setLoadingPriceId] = useState(null);
     const plans = {
-        esencial: 'price_1Pxxxxxxxxxxxxxxxxx',
-        profesional: 'price_1Pyyyyyyyyyyyyyyyy',
-        premium: 'price_1Pzzzzzzzzzzzzzzzz'
+        esencial: 'price_1RZWYEGbyaNkdiWSzPuSd3HS', // <-- Pega aquí tu ID de precio real
+        profesional: 'price_1RZWaOGbyaNkdiWSFcnPwOin', // <-- Pega aquí tu ID de precio real
+        premium: 'price_1RZWb9GbyaNkdiWSmCILdw4m' // <-- Pega aquí tu ID de precio real
     };
     const handleSubscribe = async (priceId) => {
         if (!priceId.startsWith('price_')) {
