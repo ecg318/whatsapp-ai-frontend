@@ -234,7 +234,6 @@ const MainApp = ({ user }) => {
   useEffect(() => {
     const queryParams = new URLSearchParams(window.location.search);
     if (queryParams.get('payment_success')) {
-        console.log('🎉 Payment success detectado en URL');
         setPaymentStatus('success');
         window.history.replaceState(null, null, window.location.pathname);
     }
@@ -242,24 +241,16 @@ const MainApp = ({ user }) => {
 
   useEffect(() => {
     if (!user) return;
-    
-    console.log('👤 Escuchando cambios de config para usuario:', user.uid);
-    
     const unsub = onSnapshot(doc(db, "clientes", user.uid), (doc) => {
-        const data = doc.data();
-        console.log('📊 Config actualizada:', data);
-        
         if (doc.exists()) {
-            setConfig(data);
+            setConfig(doc.data());
         } else {
-            console.log('📄 Documento no existe, creando config por defecto');
             setConfig({ plan: 'none' }); 
         }
     });
     return () => unsub();
   }, [user]);
 
-  // Resto del useEffect para rutas...
   useEffect(() => {
     const pathParts = window.location.pathname.split('/').filter(p => p);
     if (pathParts[0] === 'conversations' && pathParts[1]) {
@@ -278,27 +269,16 @@ const MainApp = ({ user }) => {
   };
 
   if (config === null) {
-      console.log('⏳ Config aún cargando...');
       return <div className="bg-gray-900 min-h-screen flex items-center justify-center"><Spinner isLarge={true} /></div>;
   }
   
-  console.log('🔍 Estado actual:', { 
-    paymentStatus, 
-    plan: config.plan, 
-    status: config.status 
-  });
-  
   if (paymentStatus === 'success' && (!config.plan || config.plan === 'none')) {
-      console.log('💳 Mostrando PaymentSuccessView');
       return <PaymentSuccessView user={user}/>;
   }
 
-  if (!config.plan || config.plan === 'none') {
-      console.log('📋 Mostrando SubscriptionFlow');
-      return <SubscriptionFlow user={user} />;
+  if (config === null) {
+  return <div className="bg-gray-900 min-h-screen flex items-center justify-center"><Spinner isLarge={true} /></div>;
   }
-  
-  console.log('🏠 Mostrando MainApp dashboard');
   
   const renderView = () => {
     switch(view) {
