@@ -245,13 +245,7 @@ const MainApp = ({ user }) => {
         if (doc.exists()) {
             setConfig(doc.data());
         } else {
-            setConfig({
-              plan: 'none',
-              nombre: '',
-              whatsapp: '',
-              telefonoAlertas: '',
-              faqs: ''
-            });
+            setConfig({ plan: 'none' }); 
         }
     });
     return () => unsub();
