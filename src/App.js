@@ -8,6 +8,7 @@ import {
   signOut
 } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot, collection, query, where, orderBy, limit } from 'firebase/firestore';
+import { loadStripe } from '@stripe/stripe-js';
 
 // --- Iconos (Lucide) ---
 const Icon = ({ path, className = 'w-6 h-6' }) => (
@@ -59,6 +60,8 @@ const initializeFirebase = () => {
 };
 
 initializeFirebase();
+
+const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY);
 
 // --- Componente Principal ---
 export default function App() {
@@ -207,33 +210,51 @@ const RegisterView = ({ onError }) => {
 const MainApp = ({ user }) => {
   const [view, setView] = useState('dashboard');
   const [activeConversationId, setActiveConversationId] = useState(null);
+  const [config, setConfig] = useState(null);
 
-  // --- ¡NUEVA LÓGICA! ---
-  // Este efecto se ejecuta una sola vez cuando el componente se carga.
-  // Lee la URL del navegador para ver si es un enlace directo a una conversación.
   useEffect(() => {
-    const pathParts = window.location.pathname.split('/').filter(p => p); // Separa la URL y quita partes vacías
-    
-    // Si la URL es como /conversations/xxxx
+    if (!user) return;
+    const unsub = onSnapshot(doc(db, "clientes", user.uid), (doc) => {
+        if (doc.exists()) {
+            setConfig(doc.data());
+        } else {
+            setConfig({ plan: 'none' }); // Si no hay doc, es un usuario sin plan
+        }
+    });
+    return () => unsub();
+  }, [user]);
+
+  useEffect(() => {
+    const pathParts = window.location.pathname.split('/').filter(p => p);
     if (pathParts[0] === 'conversations' && pathParts[1]) {
-      // Decodificamos el ID de la conversación (que viene en formato URL)
       const convoId = decodeURIComponent(pathParts[1]);
-      // Establecemos la conversación activa y cambiamos la vista
       handleViewConversation(convoId);
     }
-  }, []); // El array vacío [] asegura que solo se ejecute al principio.
+  }, []); 
 
   const handleViewConversation = (convoId) => {
     setActiveConversationId(convoId);
     setView('conversationDetail');
   };
+  
+  const handleLogout = async () => {
+    await signOut(auth);
+  };
 
+  if (config === null) {
+      return <div className="bg-gray-900 min-h-screen flex items-center justify-center"><Spinner /></div>;
+  }
+  
+  if (!config.plan || config.plan === 'none') {
+      return <SubscriptionFlow user={user} />;
+  }
+  
   const renderView = () => {
     switch(view) {
       case 'dashboard': return <DashboardView userId={user.uid} />;
       case 'conversations': return <ConversationsView userId={user.uid} onViewConversation={handleViewConversation} />;
       case 'conversationDetail': return <ConversationDetailView conversationId={activeConversationId} onBack={() => setView('conversations')} />;
-      case 'configuracion': return <ConfigView userId={user.uid} />;
+      case 'configuracion': return <ConfigView userId={user.uid} config={config} />;
       default: return <DashboardView userId={user.uid} />;
     }
   };
@@ -252,7 +273,7 @@ const MainApp = ({ user }) => {
             <NavItem icon={<Icon path={ICONS.settings} />} label="Configuración" isActive={view === 'configuracion'} onClick={() => setView('configuracion')} />
           </ul>
            <div className="mt-auto">
-             <NavItem icon={<Icon path={ICONS.logout} />} label="Cerrar Sesión" isActive={false} onClick={() => signOut(auth)} />
+             <NavItem icon={<Icon path={ICONS.logout} />} label="Cerrar Sesión" isActive={false} onClick={handleLogout} />
            </div>
         </nav>
         <main className="flex-1 p-8 overflow-y-auto h-screen">{renderView()}</main>
@@ -261,11 +282,11 @@ const MainApp = ({ user }) => {
   );
 };
 
+// --- Vistas de la Aplicación ---
 
 const DashboardView = ({ userId }) => {
     const [stats, setStats] = useState({ recoveredValue: 0, recoveredCarts: 0 });
     const [carts, setCarts] = useState([]);
-
     useEffect(() => {
         if (!userId) return;
         const q = query(collection(db, "carritosAbandonados"), where("tiendaId", "==", userId), orderBy("timestamp", "desc"));
@@ -283,7 +304,6 @@ const DashboardView = ({ userId }) => {
         });
         return () => unsubscribe();
     }, [userId]);
-
     return (
         <div>
             <h2 className="text-3xl font-bold mb-6">Dashboard de Rendimiento</h2>
@@ -293,27 +313,10 @@ const DashboardView = ({ userId }) => {
                 <StatCard icon={<Icon path={ICONS.zap} />} label="Total Carritos Gestionados" value={carts.length} color="text-indigo-400" />
             </div>
             <h3 className="text-2xl font-bold mb-4">Actividad Reciente de Carritos</h3>
-            <div className="bg-gray-800/50 rounded-lg border border-gray-700">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                        <thead className="border-b border-gray-700">
-                            <tr><th className="p-4">Estado</th><th className="p-4">Cliente</th><th className="p-4">Valor</th><th className="p-4">Fecha</th><th className="p-4">Productos</th></tr>
-                        </thead>
-                        <tbody>
-                            {carts.slice(0, 10).map(cart => (
-                            <tr key={cart.id} className="border-b border-gray-800 hover:bg-gray-800 transition-colors">
-                                <td className="p-4"><span className={`px-2 py-1 text-xs rounded-full ${cart.recuperado ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{cart.recuperado ? 'Recuperado' : 'Pendiente'}</span></td>
-                                <td className="p-4 font-mono text-sm">{cart.cliente ? cart.cliente.replace('whatsapp:', '') : 'N/A'}</td>
-                                <td className="p-4">€{cart.productos ? cart.productos.reduce((s, i) => s + (i.precio * i.cantidad), 0).toFixed(2) : '0.00'}</td>
-                                <td className="p-4 text-sm text-gray-400">{cart.timestamp ? new Date(cart.timestamp.seconds * 1000).toLocaleDateString() : 'N/A'}</td>
-                                <td className="p-4 text-sm text-gray-300">{cart.productos ? cart.productos.map(p => p.nombre).join(', ') : 'N/A'}</td>
-                            </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                    {carts.length === 0 && <p className="p-4 text-center text-gray-500">Aún no hay actividad de carritos para mostrar.</p>}
-                </div>
-            </div>
+            <div className="bg-gray-800/50 rounded-lg border border-gray-700"><div className="overflow-x-auto"><table className="w-full text-left">
+                <thead className="border-b border-gray-700"><tr><th className="p-4">Estado</th><th className="p-4">Cliente</th><th className="p-4">Valor</th><th className="p-4">Fecha</th><th className="p-4">Productos</th></tr></thead>
+                <tbody>{carts.slice(0, 10).map(cart => (<tr key={cart.id} className="border-b border-gray-800 hover:bg-gray-800 transition-colors"><td className="p-4"><span className={`px-2 py-1 text-xs rounded-full ${cart.recuperado ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{cart.recuperado ? 'Recuperado' : 'Pendiente'}</span></td><td className="p-4 font-mono text-sm">{cart.cliente ? cart.cliente.replace('whatsapp:', '') : 'N/A'}</td><td className="p-4">€{cart.productos ? cart.productos.reduce((s, i) => s + (i.precio * i.cantidad), 0).toFixed(2) : '0.00'}</td><td className="p-4 text-sm text-gray-400">{cart.timestamp ? new Date(cart.timestamp.seconds * 1000).toLocaleDateString() : 'N/A'}</td><td className="p-4 text-sm text-gray-300">{cart.productos ? cart.productos.map(p => p.nombre).join(', ') : 'N/A'}</td></tr>))}</tbody>
+            </table>{carts.length === 0 && <p className="p-4 text-center text-gray-500">Aún no hay actividad de carritos para mostrar.</p>}</div></div>
         </div>
     );
 };
@@ -331,15 +334,7 @@ const ConversationsView = ({ userId, onViewConversation }) => {
   return (
     <div>
       <h2 className="text-3xl font-bold mb-6">Últimas Conversaciones</h2>
-      <div className="space-y-4">
-        {conversations.map(convo => (
-          <div key={convo.id} onClick={() => onViewConversation(convo.id)} className="bg-gray-800/50 p-4 rounded-lg border border-gray-700 hover:bg-gray-800 cursor-pointer transition-colors">
-            <p className="font-bold text-lg flex items-center gap-2"><Icon path={ICONS.user} className="w-5 h-5"/> Cliente: {convo.customerPhone.replace('whatsapp:', '')}</p>
-            <p className="text-sm text-gray-400">Última actualización: {convo.lastUpdate ? new Date(convo.lastUpdate.seconds * 1000).toLocaleString() : 'N/A'}</p>
-          </div>
-        ))}
-        {conversations.length === 0 && <p className="text-center text-gray-500 py-8">No hay conversaciones para mostrar.</p>}
-      </div>
+      <div className="space-y-4">{conversations.map(convo => (<div key={convo.id} onClick={() => onViewConversation(convo.id)} className="bg-gray-800/50 p-4 rounded-lg border border-gray-700 hover:bg-gray-800 cursor-pointer transition-colors"><p className="font-bold text-lg flex items-center gap-2"><Icon path={ICONS.user} className="w-5 h-5"/> Cliente: {convo.customerPhone.replace('whatsapp:', '')}</p><p className="text-sm text-gray-400">Última actualización: {convo.lastUpdate ? new Date(convo.lastUpdate.seconds * 1000).toLocaleString() : 'N/A'}</p></div>))}{conversations.length === 0 && <p className="text-center text-gray-500 py-8">No hay conversaciones para mostrar.</p>}</div>
     </div>
   );
 };
@@ -359,59 +354,37 @@ const ConversationDetailView = ({ conversationId, onBack }) => {
         <div>
             <button onClick={onBack} className="mb-6 text-indigo-400 hover:text-indigo-300">&larr; Volver a todas las conversaciones</button>
             <h2 className="text-3xl font-bold mb-6">Detalle de la Conversación</h2>
-            <div className="space-y-4">
-                {messages.map(msg => (
-                    <div key={msg.id} className={`flex ${msg.author === 'user' ? 'justify-start' : 'justify-end'}`}>
-                        <div className={`max-w-xl p-4 rounded-lg ${msg.author === 'user' ? 'bg-gray-700' : 'bg-indigo-600'}`}>
-                            <p>{msg.text}</p>
-                        </div>
-                    </div>
-                ))}
-            </div>
+            <div className="space-y-4">{messages.map(msg => (<div key={msg.id} className={`flex ${msg.author === 'user' ? 'justify-start' : 'justify-end'}`}><div className={`max-w-xl p-4 rounded-lg ${msg.author === 'user' ? 'bg-gray-700' : 'bg-indigo-600'}`}><p>{msg.text}</p></div></div>))}</div>
         </div>
     );
 };
 
-const ConfigView = ({ userId }) => {
-  const [config, setConfig] = useState({});
+const ConfigView = ({ userId, config }) => {
+  const [formData, setFormData] = useState({});
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState(null);
-  useEffect(() => {
-      if (!userId) return;
-      const unsub = onSnapshot(doc(db, "clientes", userId), (doc) => {
-          if (doc.exists()) setConfig(doc.data());
-      });
-      return () => unsub();
-  }, [userId]);
-  const handleChange = (e) => setConfig(prev => ({ ...prev, [e.target.id]: e.target.value }));
+  useEffect(() => { setFormData(config); }, [config]);
+  const handleChange = (e) => setFormData(prev => ({ ...prev, [e.target.id]: e.target.value }));
   const handleCopyToClipboard = (text) => {
-      const textArea = document.createElement("textarea");
-      textArea.value = text;
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-      try {
-        document.execCommand('copy');
+      navigator.clipboard.writeText(text).then(() => {
         setMessage({ type: 'success', text: '¡API Key copiada!' });
-      } catch (err) { setMessage({ type: 'error', text: 'No se pudo copiar.' }); }
-      document.body.removeChild(textArea);
+      }, () => { setMessage({ type: 'error', text: 'No se pudo copiar.' }); });
   };
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSaving(true);
-    let finalConfig = {...config};
+    let finalConfig = {...formData};
     if (!finalConfig.apiKey) {
       if (window.crypto && window.crypto.randomUUID) {
         finalConfig.apiKey = window.crypto.randomUUID();
       } else {
-        // Fallback for older browsers
         finalConfig.apiKey = 'fb-' + Date.now() + Math.random().toString(36).substring(2, 15);
       }
     }
     try {
         await setDoc(doc(db, "clientes", userId), finalConfig, { merge: true });
         setMessage({ type: 'success', text: '¡Configuración guardada!' });
-        setConfig(finalConfig);
+        setFormData(finalConfig);
     } catch(error) { setMessage({ type: 'error', text: 'Error al guardar.' });
     } finally { setIsSaving(false); }
   };
@@ -421,19 +394,19 @@ const ConfigView = ({ userId }) => {
       <form onSubmit={handleSubmit} className="bg-gray-800/50 rounded-2xl shadow-lg border border-gray-700 overflow-hidden">
         <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="space-y-6">
-            <Input id="nombre" label="Nombre de tu e-commerce" value={config.nombre || ''} onChange={handleChange} placeholder="Ej: Tienda de Moda" icon={<Icon path={ICONS.store} />} />
-            <Input id="whatsapp" label="Nº de WhatsApp de Twilio" value={config.whatsapp || ''} onChange={handleChange} placeholder="whatsapp:+14155238886" icon={<Icon path={ICONS.key} />} />
-            <Input id="telefonoAlertas" label="Teléfono para Alertas (dueño)" value={config.telefonoAlertas || ''} onChange={handleChange} placeholder="34666111222" icon={<Icon path={ICONS.phone} />} />
-            {config.apiKey && (
+            <Input id="nombre" label="Nombre de tu e-commerce" value={formData.nombre || ''} onChange={handleChange} placeholder="Ej: Tienda de Moda" icon={<Icon path={ICONS.store} />} />
+            <Input id="whatsapp" label="Nº de WhatsApp de Twilio" value={formData.whatsapp || ''} onChange={handleChange} placeholder="whatsapp:+14155238886" icon={<Icon path={ICONS.key} />} />
+            <Input id="telefonoAlertas" label="Teléfono para Alertas (dueño)" value={formData.telefonoAlertas || ''} onChange={handleChange} placeholder="34666111222" icon={<Icon path={ICONS.phone} />} />
+            {formData.apiKey && (
               <div>
                 <h3 className="text-lg font-semibold text-gray-300 flex items-center gap-3 mb-2"><span className="text-indigo-400"><Icon path={ICONS.key}/></span>Tu API Key Universal</h3>
-                <div className="flex items-center gap-2"><input type="text" value={config.apiKey} readOnly className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 font-mono"/><button type="button" onClick={() => handleCopyToClipboard(config.apiKey)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded-md"><Icon path={ICONS.clipboard} className="w-5 h-5"/></button></div>
+                <div className="flex items-center gap-2"><input type="text" value={formData.apiKey} readOnly className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 font-mono"/><button type="button" onClick={() => handleCopyToClipboard(formData.apiKey)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded-md"><Icon path={ICONS.clipboard} className="w-5 h-5"/></button></div>
               </div>
             )}
           </div>
           <div className="flex flex-col">
              <h3 className="text-lg font-semibold text-gray-300 flex items-center gap-3 mb-2"><span className="text-indigo-400"><Icon path={ICONS.book}/></span>Base de Conocimiento (FAQs)</h3>
-            <Textarea id="faqs" label="Pega aquí tus preguntas y respuestas." value={config.faqs || ''} onChange={handleChange} rows={10} />
+            <Textarea id="faqs" label="Pega aquí tus preguntas y respuestas." value={formData.faqs || ''} onChange={handleChange} rows={10} />
           </div>
         </div>
         <footer className="p-6 bg-gray-900/50 border-t border-gray-700 flex items-center justify-end">
@@ -447,6 +420,65 @@ const ConfigView = ({ userId }) => {
     </div>
   );
 };
+
+const SubscriptionFlow = ({ user }) => {
+    const [loadingPriceId, setLoadingPriceId] = useState(null);
+    // --- ¡IMPORTANTE! ---
+    // Pega aquí los IDs de los precios que has creado en tu panel de Stripe.
+    const plans = {
+        esencial: 'prod_SUVZckgfzpHPlK',
+        profesional: 'prod_SUVbaYV76IbrGT',
+        premium: 'prod_SUVcb7vznN6db7'
+    };
+    const handleSubscribe = async (priceId) => {
+        if (!priceId.startsWith('price_')) {
+            alert("El ID del plan no está configurado. Por favor, contacta con soporte.");
+            return;
+        }
+        setLoadingPriceId(priceId);
+        const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/create-checkout-session`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ priceId, userId: user.uid })
+        });
+        const session = await response.json();
+        if (session.error) {
+            alert(session.error.message);
+            setLoadingPriceId(null);
+            return;
+        }
+        const stripe = await stripePromise;
+        const { error } = await stripe.redirectToCheckout({ sessionId: session.sessionId });
+        if (error) {
+            alert(error.message);
+            setLoadingPriceId(null);
+        }
+    };
+    return (
+        <div className="bg-gray-900 min-h-screen flex flex-col items-center justify-center text-white p-4">
+            <h1 className="text-4xl font-bold mb-4">Elige tu Plan</h1>
+            <p className="text-gray-400 mb-8">¡Estás a un paso de potenciar tu e-commerce!</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl">
+                <PlanCard title="Esencial" price="29€" features={['25 Recuperaciones/mes', 'IA para FAQs', 'Alertas a un humano']} onSubscribe={() => handleSubscribe(plans.esencial)} loading={loadingPriceId === plans.esencial} />
+                <PlanCard title="Profesional" price="49€" features={['100 Recuperaciones/mes', 'IA (1000 convers)', 'Historial de Chats', 'Soporte prioritario']} onSubscribe={() => handleSubscribe(plans.profesional)} loading={loadingPriceId === plans.profesional} recommended />
+                <PlanCard title="Premium" price="99€" features={['Recuperaciones Ilimitadas', 'Conversaciones Ilimitadas', 'Live Chat (Próx.)', 'IA con Stock (Próx.)']} onSubscribe={() => handleSubscribe(plans.premium)} loading={loadingPriceId === plans.premium} />
+            </div>
+        </div>
+    );
+};
+
+const PlanCard = ({ title, price, features, onSubscribe, loading, recommended = false }) => (
+    <div className={`p-8 rounded-lg border ${recommended ? 'border-indigo-500' : 'border-gray-700'} bg-gray-800/50 flex flex-col`}>
+        <h3 className="text-2xl font-bold">{title}</h3>
+        <p className="text-4xl font-bold my-4">{price}<span className="text-lg text-gray-400">/mes</span></p>
+        <ul className="space-y-2 mb-8 flex-grow">
+            {features.map(feature => (
+                <li key={feature} className="flex items-center gap-3"><Icon path={ICONS.check} className="w-5 h-5 text-green-400"/><span>{feature}</span></li>
+            ))}
+        </ul>
+        <button onClick={onSubscribe} disabled={loading} className={`w-full py-3 font-semibold rounded-lg ${recommended ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-gray-600 hover:bg-gray-500'}`}>{loading ? <Spinner /> : 'Suscribirse'}</button>
+    </div>
+);
 const AuthInput = ({ id, type, value, onChange, placeholder, icon }) => (
   <div className="relative">
     <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">{icon}</span>
